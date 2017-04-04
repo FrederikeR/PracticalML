@@ -1,0 +1,111 @@
+---
+title: "Practical ML"
+author: "Frederike R"
+date: "4 April 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3xsbS5bVX
+
+## Creating a prediction model
+
+
+### Loading the data 
+
+Loading useful R-packages and the data into R.
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(caret)
+library(ggplot2)
+library(randomForest)
+```
+
+
+```{r}
+data.testing <- read.table("pml-testing.csv", sep=",", header=T, na.strings=c("NA","#DIV/0!",""))
+data.training <- read.table("pml-training.csv", sep=",", header=T, na.strings=c("NA","#DIV/0!",""))
+```
+
+### Split training/testing data
+
+We split the training set into a training part and  a test part for crossvalidation.
+
+```{r}
+train.indices <- createDataPartition(y=data.training$classe, p=0.6, list=FALSE)
+train.set <- data.training[train.indices, ]
+test.set <- data.training[-train.indices, ]
+```
+
+### Feature selection
+
+First of all, remove columns with more than 50 % of NA-values.
+
+```{r}
+na.indices <- c()
+for (i in 1:length(train.set)) {
+  if (sum(is.na(train.set[ , i])) / nrow(train.set) >= .5) {
+    na.indices <- c(na.indices, i)
+  }
+}
+
+if (length(na.indices)>0){
+  train.set <- train.set[,-na.indices]
+}
+```
+
+We remove columns, which are not suitable for prediction.
+
+```{r}
+# remove columns which are obviously no predictors
+train.set <- train.set[,-c(1:7)]
+
+#remove variables with near zero variance
+NZV <- nearZeroVar(train.set, saveMetrics = TRUE)
+any(NZV$zeroVar)
+```
+Since no columns have a near zero variance, no column has to be removed.
+
+### RandomForest Model Prediction
+
+We build a Random Forest Model:
+
+```{r}
+#fit model with randomForest
+set.seed(217)
+
+modFit <- randomForest(classe~., data = train.set)
+print(modFit)
+```
+
+```{r}
+#validation on testing data
+#out of sample error
+predict_test <- predict(modFit, test.set, type = "class")
+confusionMatrix(test.set$classe, predict_test)
+```
+Hence the out-of-sample Accuracy is 99.3 %.
+
+```{r}
+#in sample error
+predict_train <- predict(modFit, train.set, type = "class")
+confusionMatrix(train.set$classe, predict_train)
+```
+Hence the in-sample Accuracy is 100 %.
+
+### Testing on the test set
+
+We now take the test set given by assignement and predict with the before fitted model.
+
+```{r}
+predict_FINAL <- predict(modFit, data.testing, type = "class")
+print(predict_FINAL)
+```
+
